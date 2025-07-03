@@ -22,7 +22,9 @@ type Client[t types.T] struct {
 	Headers    map[string]string
 	WSReqBody  *types.WorkSheetRequestBody
 	WSRespBody []t
-	IsDebug    bool
+	isDebug    bool
+	isGetExpr  bool
+	expr       int
 }
 
 func NewClient[t types.T]() *Client[t] {
@@ -76,6 +78,17 @@ func (c *Client[t]) SetResponseBody(body []t) *Client[t] {
 	return c
 }
 
+func (c *Client[t]) Debug() *Client[t] {
+	c.isDebug = true
+	return c
+}
+
+func (c *Client[t]) GetExpr(expr int) *Client[t] {
+	c.isGetExpr = true
+	c.expr = expr
+	return c
+}
+
 func (c *Client[t]) Request(reqBody *bytes.Buffer) (respBody []byte, err error) {
 	defer func() {
 		if err != nil {
@@ -120,29 +133,32 @@ func (c *Client[t]) Request(reqBody *bytes.Buffer) (respBody []byte, err error) 
 }
 
 func (c *Client[t]) WorkSheetRequest() (err error) {
-	if c.Size != 0 {
+	if c.WSReqBody.PageSize == 0 {
+		if c.isDebug {
+			fmt.Printf("[%s] start\n", time.Now().Local().Format(time.DateTime))
+		}
+		if c.isGetExpr {
+			c.WSReqBody.PageSize = 1
+		}
+		if err = c.getWorkSheetResponseBody(); err != nil {
+			return
+		}
+	} else {
 		c.WSReqBody.SetPageSize(c.Size)
 		for i := 1; true; i++ {
-			if c.IsDebug {
+			if c.isDebug {
 				fmt.Printf("[%s] start index [%d] request\n", time.Now().Local().Format(time.DateTime), i)
 			}
 			c.WSReqBody.SetPageIndex(i)
 			if err = c.getWorkSheetResponseBody(); err != nil {
 				return
 			}
-			if c.IsDebug {
+			if c.isDebug {
 				fmt.Printf("[%s] finish index [%d] request ,get data [%d]\n", time.Now().Local().Format(time.DateTime), i, len(c.WSRespBody))
 			}
 			if len(c.WSRespBody)%c.Size != 0 {
 				break
 			}
-		}
-	} else {
-		if c.IsDebug {
-			fmt.Printf("[%s] start\n", time.Now().Local().Format(time.DateTime))
-		}
-		if err = c.getWorkSheetResponseBody(); err != nil {
-			return
 		}
 	}
 
