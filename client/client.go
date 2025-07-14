@@ -8,18 +8,16 @@ import (
 	"fmt"
 	"github.com/violet-eva-01/mingdaoApi/client/types"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"time"
 )
 
 type Client[t types.T] struct {
-	Method     string
-	Url        string
-	Proxy      *url.URL
-	Size       int
-	Headers    map[string]string
+	method     string
+	url        string
+	proxy      *url.URL
+	headers    map[string]string
 	WSReqBody  *types.WorkSheetRequestBody
 	WSRespBody []t
 	isDebug    bool
@@ -32,40 +30,49 @@ func NewClient[t types.T]() *Client[t] {
 }
 
 func (c *Client[t]) SetMethod(method string) *Client[t] {
-	c.Method = method
+	c.method = method
 	return c
 }
 
+func (c *Client[t]) GetMethod() string {
+	return c.method
+}
+
 func (c *Client[t]) SetUrl(url string) *Client[t] {
-	c.Url = url
+	c.url = url
 	return c
+}
+
+func (c *Client[t]) GetUrl() string {
+	return c.url
 }
 
 func (c *Client[t]) SetProxy(proxy string) *Client[t] {
 	if proxy == "" {
-		c.Proxy = nil
+		c.proxy = nil
 		return c
 	}
 
 	if parse, err := url.Parse(proxy); err != nil {
-		log.Fatal(err)
+		fmt.Printf("build proxy failed, err is %s", err)
 	} else {
-		c.Proxy = parse
+		c.proxy = parse
 	}
 
 	return c
 }
 
-func (c *Client[t]) SetSize(size int) *Client[t] {
-	if size != 0 {
-		c.Size = size
-	}
-	return c
+func (c *Client[t]) GetProxy() string {
+	return c.proxy.String()
 }
 
 func (c *Client[t]) SetHeaders(headers map[string]string) *Client[t] {
-	c.Headers = headers
+	c.headers = headers
 	return c
+}
+
+func (c *Client[t]) GetHeaders() map[string]string {
+	return c.headers
 }
 
 func (c *Client[t]) SetRequestBody(body *types.WorkSheetRequestBody) *Client[t] {
@@ -73,9 +80,17 @@ func (c *Client[t]) SetRequestBody(body *types.WorkSheetRequestBody) *Client[t] 
 	return c
 }
 
+func (c *Client[t]) GetRequestBody() *types.WorkSheetRequestBody {
+	return c.WSReqBody
+}
+
 func (c *Client[t]) SetResponseBody(body []t) *Client[t] {
 	c.WSRespBody = append(c.WSRespBody, body...)
 	return c
+}
+
+func (c *Client[t]) GetResponseBody() []t {
+	return c.WSRespBody
 }
 
 func (c *Client[t]) Debug() *Client[t] {
@@ -100,17 +115,17 @@ func (c *Client[t]) Request(reqBody *bytes.Buffer) (respBody []byte, err error) 
 		resp *http.Response
 	)
 
-	if req, err = http.NewRequest(c.Method, c.Url, reqBody); err != nil {
+	if req, err = http.NewRequest(c.method, c.url, reqBody); err != nil {
 		return
 	}
 
-	for key, value := range c.Headers {
+	for key, value := range c.headers {
 		req.Header.Set(key, value)
 	}
 
 	var transport *http.Transport
-	if c.Proxy != nil {
-		transport = &http.Transport{Proxy: http.ProxyURL(c.Proxy)}
+	if c.proxy != nil {
+		transport = &http.Transport{Proxy: http.ProxyURL(c.proxy)}
 	} else {
 		transport = &http.Transport{}
 	}
@@ -133,18 +148,15 @@ func (c *Client[t]) Request(reqBody *bytes.Buffer) (respBody []byte, err error) 
 }
 
 func (c *Client[t]) WorkSheetRequest() (err error) {
-	if c.WSReqBody.PageSize == 0 {
+	if c.isGetExpr {
 		if c.isDebug {
 			fmt.Printf("[%s] start\n", time.Now().Local().Format(time.DateTime))
 		}
-		if c.isGetExpr {
-			c.WSReqBody.PageSize = 1
-		}
+		c.WSReqBody.PageSize = c.expr
 		if err = c.getWorkSheetResponseBody(); err != nil {
 			return
 		}
 	} else {
-		c.WSReqBody.SetPageSize(c.Size)
 		for i := 1; true; i++ {
 			if c.isDebug {
 				fmt.Printf("[%s] start index [%d] request\n", time.Now().Local().Format(time.DateTime), i)
@@ -156,7 +168,7 @@ func (c *Client[t]) WorkSheetRequest() (err error) {
 			if c.isDebug {
 				fmt.Printf("[%s] finish index [%d] request ,get data [%d]\n", time.Now().Local().Format(time.DateTime), i, len(c.WSRespBody))
 			}
-			if len(c.WSRespBody)%c.Size != 0 {
+			if len(c.WSRespBody)%c.WSReqBody.PageSize != 0 {
 				break
 			}
 		}
