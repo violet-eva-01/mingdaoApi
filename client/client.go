@@ -168,7 +168,7 @@ func (c *Client[t]) WorkSheetRequest() (err error) {
 			if c.isDebug {
 				fmt.Printf("[%s] finish index [%d] request ,get data [%d]\n", time.Now().Local().Format(time.DateTime), i, len(c.WSRespBody))
 			}
-			if len(c.WSRespBody) != 0 && len(c.WSRespBody)%c.WSReqBody.PageSize != 0 {
+			if len(c.WSRespBody) == 0 || len(c.WSRespBody)%c.WSReqBody.PageSize != 0 {
 				break
 			}
 		}
