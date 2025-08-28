@@ -153,22 +153,23 @@ func (c *Client[t]) WorkSheetRequest() (err error) {
 			fmt.Printf("[%s] start\n", time.Now().Local().Format(time.DateTime))
 		}
 		c.WSReqBody.PageSize = c.expr
-		if err = c.getWorkSheetResponseBody(); err != nil {
+		if _, err = c.getWorkSheetResponseBody(); err != nil {
 			return
 		}
 	} else {
 		for i := 1; true; i++ {
+			var again bool
 			if c.isDebug {
 				fmt.Printf("[%s] start index [%d] request\n", time.Now().Local().Format(time.DateTime), i)
 			}
 			c.WSReqBody.SetPageIndex(i)
-			if err = c.getWorkSheetResponseBody(); err != nil {
+			if again, err = c.getWorkSheetResponseBody(); err != nil {
 				return
 			}
 			if c.isDebug {
 				fmt.Printf("[%s] finish index [%d] request ,get data [%d]\n", time.Now().Local().Format(time.DateTime), i, len(c.WSRespBody))
 			}
-			if len(c.WSRespBody) == 0 || len(c.WSRespBody)%c.WSReqBody.PageSize != 0 {
+			if !again {
 				break
 			}
 		}
@@ -177,7 +178,7 @@ func (c *Client[t]) WorkSheetRequest() (err error) {
 	return
 }
 
-func (c *Client[t]) getWorkSheetResponseBody() (err error) {
+func (c *Client[t]) getWorkSheetResponseBody() (again bool, err error) {
 	defer func() {
 		if err != nil {
 			err = errors.New(fmt.Sprintf("getWorkSheetResponseBody error: %s", err))
@@ -208,6 +209,12 @@ func (c *Client[t]) getWorkSheetResponseBody() (err error) {
 	}
 
 	c.SetResponseBody(respBody.Data.Rows)
+
+	if len(respBody.Data.Rows) > 0 && len(respBody.Data.Rows)%c.WSReqBody.PageSize == 0 {
+		again = true
+	} else {
+		again = false
+	}
 	return
 }
 
